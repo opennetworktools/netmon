@@ -3,11 +3,14 @@ package main
 import (
 	"os"
 	"fmt"
+	"sync"
 
 	"github.com/roopeshsn/netmon/internal"
 )
 
 func main() {
+	c := make(chan internal.CPacket)
+	var wg sync.WaitGroup
 	args := os.Args
 	if len(args) == 1 {
 		fmt.Println("No command entered!")
@@ -34,7 +37,10 @@ func main() {
 			internal.GetLocalIP()
 		}
 	} else if args[1] == "watch" {
-		internal.WatchInterface(args[2])
+		wg.Add(2)
+		go internal.WatchInterface(args[2], c)
+		go internal.PrintPacket(c)
+		wg.Wait()
 	} else {
 		fmt.Printf("Command %v not found!\n", args[2])
 	}

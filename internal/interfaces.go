@@ -16,6 +16,11 @@ type Address struct {
 	PORT string
 }
 
+type CPacket struct {
+	SrcAddress Address
+	DstAddress Address
+}
+
 func GetLocalIP() {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -97,19 +102,22 @@ func FindAllInterfacesDescribe() {
 	}
 }
 
-func WatchInterface(name string) {
+func WatchInterface(name string, c chan CPacket) {
 	client, err := InitClient(name)
 	if err != nil {
 		fmt.Printf("%s", err)
 	}
 	packetSource := gopacket.NewPacketSource(client.handler, client.handler.LinkType())
-	fmt.Println("SrcMAC            DestMAC           SrcIP             DestIP        SrcPort  DestPort")
+	parsePackets(packetSource, c)
+}
+
+func parsePackets(packetSource *gopacket.PacketSource, c chan CPacket) {
 	for packet := range packetSource.Packets() {
-		readPacket(packet)
+		readPacket(packet, c)
 	}
 }
 
-func readPacket(packet gopacket.Packet) {
+func readPacket(packet gopacket.Packet,  c chan CPacket) {
 	ethLayer := packet.Layer(layers.LayerTypeEthernet)
 	tcpLayer := packet.Layer(layers.LayerTypeTCP)
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
@@ -139,9 +147,19 @@ func readPacket(packet gopacket.Packet) {
 		sourceIP := httpHandler.SrcIP
 		destinationIP := httpHandler.DstIP
 	
-		sourceAddress := &Address{MAC: sourceMAC.String(), IP: sourceIP.String(), PORT: sourcePort.String()}
-		destinationAddress := &Address{MAC: destinationMAC.String(), IP: destinationIP.String(), PORT: destinationPort.String()}
-		fmt.Printf("%v %v %v -> %v %v %v\n", sourceAddress.MAC, destinationAddress.MAC, sourceAddress.IP, destinationAddress.IP, sourceAddress.PORT, destinationAddress.PORT)
+		srcAddress := Address{MAC: sourceMAC.String(), IP: sourceIP.String(), PORT: sourcePort.String()}
+		dstAddress := Address{MAC: destinationMAC.String(), IP: destinationIP.String(), PORT: destinationPort.String()}
+		cPacket := CPacket{SrcAddress: srcAddress, DstAddress: dstAddress}
+		
+		c <- cPacket
+	}
+}
+
+func PrintPacket(c chan CPacket) {
+	fmt.Println("SrcMAC            DestMAC           SrcIP             DestIP        SrcPort  DestPort")
+	for {
+		p := <- c
+		fmt.Printf("%v %v %v -> %v %v %v\n", p.SrcAddress.MAC, p.DstAddress.MAC, p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT)
 	}
 }
 
