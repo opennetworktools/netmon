@@ -4,6 +4,7 @@ import (
 	"net"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
@@ -13,12 +14,14 @@ import (
 type Address struct {
 	MAC string
 	IP   string
-	PORT string
+	PORT uint16
 }
 
 type CPacket struct {
 	SrcAddress Address
 	DstAddress Address
+	Protocol string
+	Timestamp time.Time
 }
 
 func GetLocalIP() {
@@ -120,48 +123,109 @@ func parsePackets(packetSource *gopacket.PacketSource, c chan CPacket) {
 func readPacket(packet gopacket.Packet,  c chan CPacket) {
 	ethLayer := packet.Layer(layers.LayerTypeEthernet)
 	tcpLayer := packet.Layer(layers.LayerTypeTCP)
+	udpLayer := packet.Layer(layers.LayerTypeUDP)
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
 
-	if tcpLayer != nil {	
-		ethHandler, err := ethLayer.(*layers.Ethernet)
-		if err != true {
-			// fmt.Println("ethHandler")
-			return
-		}
-		sourceMAC := ethHandler.SrcMAC
-		destinationMAC := ethHandler.DstMAC
-
-		tcpHandler, err := tcpLayer.(*layers.TCP)
-		if err != true {
-			// fmt.Println("tcpHandler")
-			return
-		}
-		sourcePort := tcpHandler.SrcPort
-		destinationPort := tcpHandler.DstPort
-		
-		httpHandler, err := ipLayer.(*layers.IPv4)
-		if err != true {
-			// fmt.Println("httpHandler")
-			return
-		}
-		sourceIP := httpHandler.SrcIP
-		destinationIP := httpHandler.DstIP
-	
-		srcAddress := Address{MAC: sourceMAC.String(), IP: sourceIP.String(), PORT: sourcePort.String()}
-		dstAddress := Address{MAC: destinationMAC.String(), IP: destinationIP.String(), PORT: destinationPort.String()}
-		cPacket := CPacket{SrcAddress: srcAddress, DstAddress: dstAddress}
-		
-		c <- cPacket
+	ethHandler, err := ethLayer.(*layers.Ethernet)
+	if err != true {
+		return
 	}
+	sourceMAC := ethHandler.SrcMAC
+	destinationMAC := ethHandler.DstMAC
+
+	httpHandler, err := ipLayer.(*layers.IPv4)
+	if err != true {
+		return
+	}
+	sourceIP := httpHandler.SrcIP
+	destinationIP := httpHandler.DstIP
+	protocol := httpHandler.Protocol
+
+	var ports TransportLayerPortInfo
+	if tcpLayer != nil {
+		// Type assertion for TCP layer
+		tcpHandler, ok := tcpLayer.(*layers.TCP)
+		if !ok {
+			return
+		}
+		// Call parseTCPHeader to get the ports
+		ports = parseTCPHeader(tcpHandler)
+	} else if udpLayer != nil {
+		// Type assertion for UDP layer
+		udpHandler, ok := udpLayer.(*layers.UDP)
+		if !ok {
+			return
+		}
+		// Call parseUDPHeader to get the ports
+		ports = parseUDPHeader(udpHandler)
+	}
+
+	// Extract source and destination ports
+	srcPort := ports.SrcPort
+	dstPort := ports.DstPort
+
+	// Debugging
+	// if tcpLayer != nil {
+	// 	fmt.Println("TCP Layer")
+	// 	srcPort, dstPort = parseUDPHeader(tcpLayer)
+	// } else if udpLayer != nil {
+	// 	fmt.Println("UDP Layer")
+	// 	srcPort, dstPort = parseUDPHeader(udpLayer)
+	// }
+
+	srcAddress := Address{MAC: sourceMAC.String(), IP: sourceIP.String(), PORT: srcPort}
+	dstAddress := Address{MAC: destinationMAC.String(), IP: destinationIP.String(), PORT: dstPort}
+	cPacket := CPacket{SrcAddress: srcAddress, DstAddress: dstAddress, Protocol: protocol.String(), Timestamp: packet.Metadata().CaptureInfo.Timestamp}
+		
+	c <- cPacket
+}
+
+type TransportLayerPortInfo struct {
+	SrcPort uint16
+	DstPort uint16
+}
+
+func parseTCPHeader(tcpHandler *layers.TCP) TransportLayerPortInfo {
+	var srcPort uint16 = uint16(tcpHandler.SrcPort)
+	var dstPort uint16 = uint16(tcpHandler.DstPort)
+	return TransportLayerPortInfo{SrcPort: srcPort, DstPort: dstPort}
+}
+
+func parseUDPHeader(udpHandler *layers.UDP) TransportLayerPortInfo {
+	var srcPort uint16 = uint16(udpHandler.SrcPort)
+	var dstPort uint16 = uint16(udpHandler.DstPort)
+	return TransportLayerPortInfo{SrcPort: srcPort, DstPort: dstPort}
 }
 
 func PrintPacket(c chan CPacket) {
-	fmt.Println("SrcMAC            DestMAC           SrcIP             DestIP        SrcPort  DestPort")
+	fmt.Println("Timestamp                             SrcMAC            DestMAC           SrcIP             DestIP        SrcPort  DestPort   Protocol")
 	for {
 		p := <- c
-		fmt.Printf("%v %v %v -> %v %v %v\n", p.SrcAddress.MAC, p.DstAddress.MAC, p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT)
+		fmt.Printf("%v %v %v %v -> %v %d %d %s\n", p.Timestamp, p.SrcAddress.MAC, p.DstAddress.MAC, p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT, p.Protocol)
 	}
 }
+
+func getInterfaceAddresses(name string) []string{
+	devices, err := pcap.FindAllDevs()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var addresses []string
+	for _, device := range devices {
+		if name == device.Name {
+			for _, address := range device.Addresses {
+				addresses = append(addresses, address.IP.String())
+			}
+		}
+	}
+
+	return addresses
+}
+
+// func getTrafficDirection(srcIP, dstIP, srcPort, dstPort, interfaceAddresses[] string) {
+
+// }
 
 func rDNS() {
 	domainNames, err := net.LookupAddr("13.232.193.230")
