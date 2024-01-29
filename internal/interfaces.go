@@ -9,6 +9,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/layers"
+	// "github.com/jedib0t/go-pretty/v6/table"
 )
 
 type Address struct {
@@ -22,6 +23,13 @@ type CPacket struct {
 	DstAddress Address
 	Protocol string
 	Timestamp time.Time
+}
+
+type CHost struct {
+	HostName string
+	HostNames []string
+	ASNumber uint
+	ASName string
 }
 
 func GetLocalIP() {
@@ -199,6 +207,8 @@ func parseUDPHeader(udpHandler *layers.UDP) TransportLayerPortInfo {
 
 func PrintPacket(c chan CPacket) {
 	fmt.Println("Timestamp                             SrcMAC            DestMAC           SrcIP             DestIP        SrcPort  DestPort   Protocol")
+	// t := table.NewWriter()
+	// t.AppendHeader(table.Row{"Timestamp", "SrcMac", "DstMac", "SrcIP", "DstIP", "SrcPort", "DstPort", "Protocol"})
 	for {
 		p := <- c
 		fmt.Printf("%v %v %v %v -> %v %d %d %s\n", p.Timestamp, p.SrcAddress.MAC, p.DstAddress.MAC, p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT, p.Protocol)
@@ -223,17 +233,93 @@ func getInterfaceAddresses(name string) []string{
 	return addresses
 }
 
-// func getTrafficDirection(srcIP, dstIP, srcPort, dstPort, interfaceAddresses[] string) {
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
 
-// }
+	return false
+}
 
-func rDNS() {
-	domainNames, err := net.LookupAddr("13.232.193.230")
+func isLoopback(ipAddress string) bool {
+	ip := net.ParseIP(ipAddress)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
+}
+
+func getTrafficDirection(srcIP string, dstIP string, srcPort uint16, dstPort uint16, interfaceAddresses[] string) string {
+	if isLoopback(srcIP) && isLoopback(dstIP) {
+		if srcPort > dstPort {
+			return "Outgoing"
+		} else {
+			return "Incoming"
+		}
+	}
+
+	if contains(interfaceAddresses, srcIP) {
+		return "Outgoing"
+	} else if srcIP != "0.0.0.0" {
+		return "Incoming"
+	} else if !contains(interfaceAddresses, dstIP) {
+		return "Outgoing"
+	} 
+
+	return "Incoming"
+}
+
+func ResolveHostsInformation(interfaceName string, c chan CPacket) {
+	m := make(map[string]CHost)
+
+	for {
+		p := <- c
+		// determine which ip address to lookup (src, or dst) based on incoming and outgoing traffic
+		var interfaceAddresses []string = getInterfaceAddresses(interfaceName)
+		var trafficDirection string = getTrafficDirection(p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT, interfaceAddresses)
+
+		var ipAddressToLookup string
+		if trafficDirection == "Incoming" {
+			ipAddressToLookup = p.SrcAddress.IP
+		} else {
+			ipAddressToLookup = p.DstAddress.IP
+		}
+
+		_, ok := m[ipAddressToLookup] 
+		if ok {
+			continue
+		}
+
+		asNumber, asName := rHost(ipAddressToLookup)
+		hostNames, err := rDNS(ipAddressToLookup)
+
+		if err != nil {
+			fmt.Printf("%v, %v\n", ipAddressToLookup, err)
+		}
+
+		var hostName string
+		if len(hostNames) >= 1 {
+			hostName = hostNames[0]
+		} else {
+			hostName = ipAddressToLookup
+		}
+		host := CHost{HostName: hostName, HostNames: hostNames, ASNumber: asNumber, ASName: asName}
+		m[ipAddressToLookup] = host
+		fmt.Printf("%v %v - %v %v \n", ipAddressToLookup, hostName, asNumber, asName)
+	}
+}
+
+func rHost(ipAddress string) (uint, string) {
+	ASNumber, ASName := GetASN(ipAddress)
+	return ASNumber, ASName
+}
+
+func rDNS(ipAddress string) ([]string, error) {
+	domainNames, err := net.LookupAddr(ipAddress)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return nil, err
 	}
-	for _, domain := range domainNames {
-		fmt.Println(domain)
-	}
+	return domainNames, nil
 }

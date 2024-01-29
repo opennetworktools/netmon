@@ -9,15 +9,15 @@ import (
 	"github.com/oschwald/maxminddb-golang"
 )
 
-func GetASN(IPAddress string) {
-	mmdbASNReader(IPAddress)
+func GetASN(IPAddress string) (uint, string){
+	return mmdbASNReader(IPAddress)
 }
 
 func GetCountry(IPAddress string) {
 	mmdbCountryReader(IPAddress)
 }
 
-func mmdbASNReader(IPAddress string) {
+func mmdbASNReader(IPAddress string) (uint, string){
 	dbFilePath := filepath.Join("mmdb", "GeoLite2-ASN.mmdb")
 	db, err := maxminddb.Open(dbFilePath)
 	if err != nil {
@@ -35,7 +35,7 @@ func mmdbASNReader(IPAddress string) {
 	if err != nil {
 		log.Panic(err)
 	}
-	fmt.Printf("%d %s \n", record.ASN, record.ASName)
+	return record.ASN, record.ASName
 }
 
 func mmdbCountryReader(IPAddress string) {

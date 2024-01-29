@@ -15,11 +15,7 @@ func main() {
 	if len(args) == 1 {
 		fmt.Println("No command entered!")
 	} else if args[1] == "show" || args[1] == "sh" {
-		if args[2] == "asn" {
-			internal.GetASN("81.2.69.142")
-		} else if args[2] == "country" || args[2] == "cc"  {
-			internal.GetCountry("81.2.69.142")
-		} else if args[2] == "interface" || args[2] == "int" {
+		if args[2] == "interface" || args[2] == "int" {
 			if len(args) >= 5 {
 				if args[3] == "describe" || args[3] == "des" {
 					internal.FindInterfaceDescribe(args[4])
@@ -37,10 +33,17 @@ func main() {
 			internal.GetLocalIP()
 		}
 	} else if args[1] == "watch" {
-		wg.Add(2)
-		go internal.WatchInterface(args[2], c)
-		go internal.PrintPacket(c)
-		wg.Wait()
+		if args[2] == "packets" {
+			wg.Add(2)
+			go internal.WatchInterface(args[3], c)
+			go internal.PrintPacket(c)
+			wg.Wait()
+		} else if args[2] == "hosts" {
+			wg.Add(2)
+			go internal.WatchInterface(args[3], c)
+			go internal.ResolveHostsInformation(args[3], c)
+			wg.Wait()
+		}
 	} else {
 		fmt.Printf("Command %v not found!\n", args[2])
 	}
