@@ -34,10 +34,19 @@ func main() {
 		}
 	} else if args[1] == "watch" {
 		if args[2] == "packets" {
-			wg.Add(2)
-			go internal.WatchInterface(args[3], c)
-			go internal.PrintPacket(c)
-			wg.Wait()
+			if len(args) >= 5 {
+				if args[4] == "html" {
+					wg.Add(2)
+					go internal.WatchInterface(args[3], c)
+					go internal.StartServer(c)
+					wg.Wait()
+				}
+			} else {
+				wg.Add(2)
+				go internal.WatchInterface(args[3], c)
+				go internal.PrintPacket(c)
+				wg.Wait()
+			}
 		} else if args[2] == "hosts" {
 			wg.Add(2)
 			go internal.WatchInterface(args[3], c)
