@@ -23,6 +23,7 @@ type CPacket struct {
 	DstAddress Address
 	Protocol string
 	Timestamp time.Time
+	CaptureLength int // bytes
 }
 
 type CHost struct {
@@ -30,6 +31,7 @@ type CHost struct {
 	HostNames []string
 	ASNumber uint
 	ASName string
+	Bytes int
 }
 
 func GetLocalIP() {
@@ -183,7 +185,7 @@ func readPacket(packet gopacket.Packet,  c chan CPacket) {
 
 	srcAddress := Address{MAC: sourceMAC.String(), IP: sourceIP.String(), PORT: srcPort}
 	dstAddress := Address{MAC: destinationMAC.String(), IP: destinationIP.String(), PORT: dstPort}
-	cPacket := CPacket{SrcAddress: srcAddress, DstAddress: dstAddress, Protocol: protocol.String(), Timestamp: packet.Metadata().CaptureInfo.Timestamp}
+	cPacket := CPacket{SrcAddress: srcAddress, DstAddress: dstAddress, Protocol: protocol.String(), Timestamp: packet.Metadata().CaptureInfo.Timestamp, CaptureLength: packet.Metadata().CaptureInfo.CaptureLength}
 		
 	c <- cPacket
 }
@@ -271,14 +273,13 @@ func getTrafficDirection(srcIP string, dstIP string, srcPort uint16, dstPort uin
 	return "Incoming"
 }
 
-func ResolveHostsInformation(interfaceName string, c chan CPacket) {
-	m := make(map[string]CHost)
-
+func ResolveHostsInformation(interfaceName string, c chan CPacket, m map[string]CHost, html bool) {
 	for {
 		p := <- c
 		// determine which ip address to lookup (src, or dst) based on incoming and outgoing traffic
 		var interfaceAddresses []string = getInterfaceAddresses(interfaceName)
 		var trafficDirection string = getTrafficDirection(p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT, interfaceAddresses)
+		var captureLength int = p.CaptureLength
 
 		var ipAddressToLookup string
 		if trafficDirection == "Incoming" {
@@ -287,16 +288,19 @@ func ResolveHostsInformation(interfaceName string, c chan CPacket) {
 			ipAddressToLookup = p.DstAddress.IP
 		}
 
-		_, ok := m[ipAddressToLookup] 
+		oldHost, ok := m[ipAddressToLookup] 
 		if ok {
+			oldHost.Bytes += captureLength
+			m[ipAddressToLookup] = oldHost
 			continue
 		}
 
 		asNumber, asName := rHost(ipAddressToLookup)
 		hostNames, err := rDNS(ipAddressToLookup)
 
+
 		if err != nil {
-			fmt.Printf("%v, %v\n", ipAddressToLookup, err)
+			// fmt.Printf("%v, %v\n", ipAddressToLookup, err)
 		}
 
 		var hostName string
@@ -305,9 +309,12 @@ func ResolveHostsInformation(interfaceName string, c chan CPacket) {
 		} else {
 			hostName = ipAddressToLookup
 		}
-		host := CHost{HostName: hostName, HostNames: hostNames, ASNumber: asNumber, ASName: asName}
+		host := CHost{HostName: hostName, HostNames: hostNames, ASNumber: asNumber, ASName: asName, Bytes: captureLength}
 		m[ipAddressToLookup] = host
-		fmt.Printf("%v %v - %v %v \n", ipAddressToLookup, hostName, asNumber, asName)
+
+		if !html {
+			fmt.Printf("%v %v - %v %v \n", ipAddressToLookup, hostName, asNumber, asName)
+		}
 	}
 }
 

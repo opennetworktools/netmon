@@ -10,6 +10,7 @@ import (
 
 func main() {
 	c := make(chan internal.CPacket)
+	m := make(map[string]internal.CHost)
 	var wg sync.WaitGroup
 	args := os.Args
 	if len(args) == 1 {
@@ -36,9 +37,10 @@ func main() {
 		if args[2] == "packets" {
 			if len(args) >= 5 {
 				if args[4] == "html" {
-					wg.Add(2)
+					wg.Add(3)
 					go internal.WatchInterface(args[3], c)
-					go internal.StartServer(c)
+					go internal.ResolveHostsInformation(args[3], c, m, true)
+					go internal.StartServer(c, m)
 					wg.Wait()
 				}
 			} else {
@@ -50,7 +52,7 @@ func main() {
 		} else if args[2] == "hosts" {
 			wg.Add(2)
 			go internal.WatchInterface(args[3], c)
-			go internal.ResolveHostsInformation(args[3], c)
+			go internal.ResolveHostsInformation(args[3], c, m, false)
 			wg.Wait()
 		}
 	} else {
