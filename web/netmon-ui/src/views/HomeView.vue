@@ -3,6 +3,7 @@
 
 <template>
   <main>
-    <div>Home</div>
+    <div>Netmon</div>
+    <div>A Network Monitor</div>
   </main>
 </template>

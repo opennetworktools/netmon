@@ -1,13 +1,14 @@
 package internal
 
-import(
+import (
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
-	"html/template"
 	"path/filepath"
 )
 
+// Archived
 func StartServer(c chan CPacket, m map[string]CHost) {
 	pagePath := filepath.Join("pages", "index.html")
 	printPackets := func(wr http.ResponseWriter, r *http.Request) {

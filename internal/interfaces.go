@@ -1,14 +1,16 @@
 package internal
 
 import (
-	"net"
+	"container/list"
 	"fmt"
 	"log"
+	"net"
+	"sync"
 	"time"
 
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	// "github.com/jedib0t/go-pretty/v6/table"
 )
 
@@ -27,11 +29,50 @@ type CPacket struct {
 }
 
 type CHost struct {
+	IP string
 	HostName string
 	HostNames []string
 	ASNumber uint
 	ASName string
 	Bytes int
+}
+
+type HostQueue struct {
+	lock sync.Mutex
+	queue *list.List
+}
+
+func NewHostQueue() *HostQueue {
+    return &HostQueue{
+        queue: list.New(),
+    }
+}
+
+func (q *HostQueue) Dequeue() *CHost {
+    q.lock.Lock()
+    defer q.lock.Unlock()
+
+    if q.queue.Len() == 0 {
+        return nil
+    }
+
+    frontElement := q.queue.Front()
+    host := frontElement.Value.(CHost)
+    q.queue.Remove(frontElement)
+    
+    return &host
+}
+
+// I implemented a map with mutex, but in my observation it's not neeeded.
+type HostMap struct {
+    lock sync.Mutex
+    hosts map[string]CHost
+}
+
+func NewHostMap() *HostMap {
+    return &HostMap{
+        hosts: make(map[string]CHost),
+    }
 }
 
 func GetLocalIP() {
@@ -137,14 +178,14 @@ func readPacket(packet gopacket.Packet,  c chan CPacket) {
 	ipLayer := packet.Layer(layers.LayerTypeIPv4)
 
 	ethHandler, err := ethLayer.(*layers.Ethernet)
-	if err != true {
+	if !err {
 		return
 	}
 	sourceMAC := ethHandler.SrcMAC
 	destinationMAC := ethHandler.DstMAC
 
 	httpHandler, err := ipLayer.(*layers.IPv4)
-	if err != true {
+	if !err {
 		return
 	}
 	sourceIP := httpHandler.SrcIP
@@ -273,9 +314,23 @@ func getTrafficDirection(srcIP string, dstIP string, srcPort uint16, dstPort uin
 	return "Incoming"
 }
 
-func ResolveHostsInformation(interfaceName string, c chan CPacket, m map[string]CHost, html bool) {
-	for {
-		p := <- c
+func ResolveHostsInformation(interfaceName string, c chan CPacket, m *HostMap, mc chan CHost, html bool) {
+	hostQueue := NewHostQueue()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// ResolveHostInformation will put CHost to hostQueue.queue
+	go ResolveHostInformation(interfaceName, c, m, mc, html, hostQueue)
+
+	// pushToMC will push the CHost to a channel (mc), if queue is non-empty
+	go pushToMC(hostQueue, mc)
+
+	wg.Wait()
+}
+
+func ResolveHostInformation(interfaceName string, c chan CPacket, m *HostMap, mc chan CHost, html bool, hostQueue *HostQueue) {
+	for p := range c {
 		// determine which ip address to lookup (src, or dst) based on incoming and outgoing traffic
 		var interfaceAddresses []string = getInterfaceAddresses(interfaceName)
 		var trafficDirection string = getTrafficDirection(p.SrcAddress.IP, p.DstAddress.IP, p.SrcAddress.PORT, p.DstAddress.PORT, interfaceAddresses)
@@ -288,33 +343,56 @@ func ResolveHostsInformation(interfaceName string, c chan CPacket, m map[string]
 			ipAddressToLookup = p.DstAddress.IP
 		}
 
-		oldHost, ok := m[ipAddressToLookup] 
+		m.lock.Lock()
+
+		oldHost, ok := m.hosts[ipAddressToLookup]
 		if ok {
 			oldHost.Bytes += captureLength
-			m[ipAddressToLookup] = oldHost
+			m.hosts[ipAddressToLookup] = oldHost
+		} else {
+			asNumber, asName := rHost(ipAddressToLookup)
+			hostNames, err := rDNS(ipAddressToLookup)
+
+			if err != nil {
+				// fmt.Printf("%v, %v\n", ipAddressToLookup, err)
+			}
+
+			var hostName string
+			if len(hostNames) >= 1 {
+				hostName = hostNames[0]
+			} else {
+				hostName = ipAddressToLookup
+			}
+			host := CHost{IP: ipAddressToLookup, HostName: hostName, HostNames: hostNames, ASNumber: asNumber, ASName: asName, Bytes: captureLength}
+			m.hosts[ipAddressToLookup] = host
+
+			hostClone := host
+			hostQueue.lock.Lock()
+			hostQueue.queue.PushBack(hostClone)
+			hostQueue.lock.Unlock()
+
+			if !html {
+				fmt.Println(m.hosts[ipAddressToLookup])
+				// fmt.Printf("%v %v - %v %v \n", ipAddressToLookup, hostName, asNumber, asName)
+			}
+		}
+
+		m.lock.Unlock()
+	}
+}
+
+func pushToMC(hostQueue *HostQueue, mc chan CHost) {
+	for {
+		host := hostQueue.Dequeue()
+
+		// If the queue is empty, wait for a short duration before trying again
+		if host == nil {
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
-		asNumber, asName := rHost(ipAddressToLookup)
-		hostNames, err := rDNS(ipAddressToLookup)
-
-
-		if err != nil {
-			// fmt.Printf("%v, %v\n", ipAddressToLookup, err)
-		}
-
-		var hostName string
-		if len(hostNames) >= 1 {
-			hostName = hostNames[0]
-		} else {
-			hostName = ipAddressToLookup
-		}
-		host := CHost{HostName: hostName, HostNames: hostNames, ASNumber: asNumber, ASName: asName, Bytes: captureLength}
-		m[ipAddressToLookup] = host
-
-		if !html {
-			fmt.Printf("%v %v - %v %v \n", ipAddressToLookup, hostName, asNumber, asName)
-		}
+		// Send the dequeued host to the channel
+		mc <- *host
 	}
 }
 

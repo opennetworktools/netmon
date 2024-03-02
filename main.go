@@ -1,8 +1,8 @@
 package main
 
 import (
-	"os"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/roopeshsn/netmon/internal"
@@ -10,8 +10,11 @@ import (
 
 func main() {
 	c := make(chan internal.CPacket)
-	m := make(map[string]internal.CHost)
+	m := internal.NewHostMap()
+	mc := make(chan internal.CHost)
+
 	var wg sync.WaitGroup
+
 	args := os.Args
 	if len(args) == 1 {
 		fmt.Println("No command entered!")
@@ -37,10 +40,16 @@ func main() {
 		if args[2] == "packets" {
 			if len(args) >= 5 {
 				if args[4] == "html" {
+					wg.Add(2)
+					go internal.WatchInterface(args[3], c)
+					go internal.ResolveHostsInformation(args[3], c, m, mc, true)
+					// go internal.StartServer(c, m)
+					wg.Wait()
+				} else if args[4] == "web" {
 					wg.Add(3)
 					go internal.WatchInterface(args[3], c)
-					go internal.ResolveHostsInformation(args[3], c, m, true)
-					go internal.StartServer(c, m)
+					go internal.ResolveHostsInformation(args[3], c, m, mc, true)
+					go internal.SendEvents(c, mc)
 					wg.Wait()
 				}
 			} else {
@@ -52,7 +61,7 @@ func main() {
 		} else if args[2] == "hosts" {
 			wg.Add(2)
 			go internal.WatchInterface(args[3], c)
-			go internal.ResolveHostsInformation(args[3], c, m, false)
+			go internal.ResolveHostsInformation(args[3], c, m, mc, false)
 			wg.Wait()
 		}
 	} else {
