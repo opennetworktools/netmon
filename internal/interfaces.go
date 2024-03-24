@@ -349,6 +349,13 @@ func ResolveHostInformation(interfaceName string, c chan CPacket, m *HostMap, mc
 		if ok {
 			oldHost.Bytes += captureLength
 			m.hosts[ipAddressToLookup] = oldHost
+
+			oldHostClone, ok := m.hosts[ipAddressToLookup]
+			if ok {
+				hostQueue.lock.Lock()
+				hostQueue.queue.PushBack(oldHostClone)
+				hostQueue.lock.Unlock()
+			}
 		} else {
 			asNumber, asName := rHost(ipAddressToLookup)
 			hostNames, err := rDNS(ipAddressToLookup)
