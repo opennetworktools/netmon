@@ -17,7 +17,7 @@
 import { RouterView } from 'vue-router'
 
 export default {
-  name: "App",
+  name: "Sidebar",
   methods: {
     goToPage(page) {
        this.$router.push(page);

@@ -1,9 +1,9 @@
-<script setup>
-</script>
-
 <template>
   <main>
-    <div>Netmon</div>
-    <div>A Network Monitor</div>
+    <RealTimeChart/>
   </main>
 </template>
+
+<script setup>
+  import RealTimeChart from '../components/RealTimeChart.vue'
+</script>
