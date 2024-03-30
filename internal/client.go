@@ -17,3 +17,7 @@ func InitClient(name string) (*Client, error) {
 	c.handler = handler
 	return c, nil
 }
+
+func (c *Client) Close() {
+    c.handler.Close()
+}

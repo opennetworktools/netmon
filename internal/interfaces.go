@@ -184,30 +184,65 @@ func readPacket(packet gopacket.Packet,  c chan CPacket) {
 	sourceMAC := ethHandler.SrcMAC
 	destinationMAC := ethHandler.DstMAC
 
+
+	var sourceIP net.IP
+	var destinationIP net.IP
+	var protocol layers.IPProtocol
+
 	httpHandler, err := ipLayer.(*layers.IPv4)
 	if !err {
 		return
 	}
-	sourceIP := httpHandler.SrcIP
-	destinationIP := httpHandler.DstIP
-	protocol := httpHandler.Protocol
+
+	// Capturing IPv6 Packets but commented out temporary due to the below error:
+
+	// 2024/03/30 11:17:42 IP passed to Lookup cannot be nil
+	// panic: IP passed to Lookup cannot be nil
+
+	// goroutine 6 [running]:
+	// log.Panic({0xc0000cfbc8?, 0x0?, 0x76918f?})
+	// 		/usr/local/go/src/log/log.go:432 +0x5a
+	// github.com/roopeshsn/netmon/internal.mmdbASNReader({0x76918f, 0x5})
+	// 		/home/roopesh/developer/projects/netmon/internal/mmdb.go:36 +0x1eb
+	// github.com/roopeshsn/netmon/internal.GetASN(...)
+	// 		/home/roopesh/developer/projects/netmon/internal/mmdb.go:13
+	// github.com/roopeshsn/netmon/internal.rHost({0x76918f?, 0xc000112510?})
+	// 		/home/roopesh/developer/projects/netmon/internal/interfaces.go:429 +0x19
+	// github.com/roopeshsn/netmon/internal.ResolveHostInformation({0x7ffe3ae2c7c4, 0x9}, 0xc000146000, 0xc000134030, 0x0?, 0x1, 0xc0000341d0)
+	// 		/home/roopesh/developer/projects/netmon/internal/interfaces.go:382 +0x5b7
+	// created by github.com/roopeshsn/netmon/internal.ResolveHostsInformation in goroutine 19
+	// 		/home/roopesh/developer/projects/netmon/internal/interfaces.go:346 +0x152
+
+	// ipv6Layer := packet.Layer(layers.LayerTypeIPv6)
+	// ipv6Handler, _ := ipv6Layer.(*layers.IPv6)
+
+	// if httpHandler != nil {
+    //     sourceIP = httpHandler.SrcIP
+    //     destinationIP = httpHandler.DstIP
+    //     protocol = httpHandler.Protocol
+    // } else if ipv6Handler != nil {
+    //     sourceIP = ipv6Handler.SrcIP
+    //     destinationIP = ipv6Handler.DstIP
+    //     protocol = ipv6Handler.NextHeader
+    // }
+
+	sourceIP = httpHandler.SrcIP
+	destinationIP = httpHandler.DstIP
+	protocol = httpHandler.Protocol
 
 	var ports TransportLayerPortInfo
 	if tcpLayer != nil {
-		// Type assertion for TCP layer
-		tcpHandler, ok := tcpLayer.(*layers.TCP)
+		tcpHandler, ok := tcpLayer.(*layers.TCP) // Type assertion for TCP layer
 		if !ok {
 			return
 		}
-		// Call parseTCPHeader to get the ports
-		ports = parseTCPHeader(tcpHandler)
+
+		ports = parseTCPHeader(tcpHandler) // Call parseTCPHeader to get the ports
 	} else if udpLayer != nil {
-		// Type assertion for UDP layer
 		udpHandler, ok := udpLayer.(*layers.UDP)
 		if !ok {
 			return
 		}
-		// Call parseUDPHeader to get the ports
 		ports = parseUDPHeader(udpHandler)
 	}
 
