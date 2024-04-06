@@ -40,6 +40,7 @@ export default {
         }
     },
     created() {
+        // console.log(this.packets)
     },
     mounted() {
         const data = this.chartData
@@ -87,8 +88,13 @@ export default {
             .attr("stroke-width", 1.5)
             .attr("d", line)
 
-        console.log(this.packets)
+        // console.log(this.packets)
     },
+    watch: {
+        packets(newArr, oldArr) {
+            console.log(newArr)
+        }
+    }
 }
 </script>
 

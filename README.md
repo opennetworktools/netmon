@@ -15,8 +15,10 @@ go build
 Start the collector (to collect network packets) and visualise the packet information in CLI.
 
 ```
-sudo ./netmon watch packets wlp0s20f3
+sudo ./netmon watch packets wlp0s20f3 // Replace wlp0s20f3 with your network interface
 ```
+
+Run `./netmon show interfaces describe` to know about your network interfaces. 
 
 Replace wlp0s20f3 with your system's interface.
 

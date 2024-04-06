@@ -16,7 +16,7 @@
 </template>
 
 <script>
-import { watch, ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import RealTimeChart from '@/components/RealTimeChart.vue'
 import Hosts from '@/components/Hosts.vue'
 import dayjs from 'dayjs'
@@ -58,14 +58,12 @@ export default {
       setupEventSource()
     })
 
-    const packetsForChart = computed(() => packets.value.slice()) // Make a reactive computed property
-
-    watch(packets, (currentValue, oldValue) => {
-      console.log(currentValue);
-    });
+    // watch(packets, (currentValue, oldValue) => {
+    //   console.log(currentValue);
+    // });
 
     return {
-      packets: packetsForChart,
+      packets,
       prettyPrint
     }
   }
