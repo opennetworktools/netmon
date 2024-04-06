@@ -1,7 +1,7 @@
-<script setup>
-import Sidebar from './components/Sidebar.vue'
-</script>
-
 <template>
-  <Sidebar/>
+  <Home/>
 </template>
+
+<script setup>
+import Home from './views/Home.vue';
+</script>

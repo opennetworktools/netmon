@@ -1,12 +1,12 @@
 <template>
-    <main>
-      <h1>Hosts</h1>
-      <div class="container">
-        <ul>
-          <li v-for="(hostsObj, index) in hosts" :key="index">{{ aggregate(hostsObj) }}</li>
-        </ul>
-      </div>
-    </main>
+  <div class="container-hosts">
+    <div>Hosts</div>
+    <div class="container">
+      <ul>
+        <li v-for="(hostsObj, index) in hosts" :key="index">{{ aggregate(hostsObj) }}</li>
+      </ul>
+    </div>
+  </div>
 </template>
   
 <script>
@@ -14,11 +14,13 @@
     data() {
       return {
           hosts: [],
-          aggregation: {}
+          aggregation: {},
       };
     },
     created() {
       this.setupEventSource();
+    },
+    mounted() {
     },
     methods: {
       setupEventSource() {
@@ -47,11 +49,14 @@
   </script>
   
   <style scoped>
-  .container {
-    margin-top: 1rem;
+  .container-hosts {
+    margin-top: 1rem
   }
-  
-  ul {
-    list-style: none;
+
+  .container {
+    margin-top: 0.5rem;
+    max-height: 400px;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   </style>

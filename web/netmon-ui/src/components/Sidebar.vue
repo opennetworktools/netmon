@@ -3,8 +3,8 @@
       <div class="sidebar">
         <div class="sidebar-container">
             <div class="sidebar-nav" @click="goToPage('/')">Dashboard</div>
-            <div class="sidebar-nav" @click="goToPage('/packets')">Packets</div>
-            <div class="sidebar-nav" @click="goToPage('/hosts')">Hosts</div>
+            <!-- <div class="sidebar-nav" @click="goToPage('/packets')">Packets</div>
+            <div class="sidebar-nav" @click="goToPage('/hosts')">Hosts</div> -->
         </div>
       </div>
       <div class="content">
