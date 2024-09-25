@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/roopeshsn/netmon/internal"
+	"github.com/opennetworktools/netmon/internal"
 )
 
 func main() {

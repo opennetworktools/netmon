@@ -1,4 +1,4 @@
-module github.com/roopeshsn/netmon
+module github.com/opennetworktools/netmon
 
 go 1.20
 
